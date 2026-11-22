@@ -1,0 +1,15 @@
+{
+  "name": "Hockey Seconds Poster Maker",
+  "short_name": "Seconds Poster",
+  "description": "Make hockey seconds fundraiser posters and export them for social media.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f3f0ec",
+  "theme_color": "#2a0d1f",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
