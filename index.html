@@ -222,7 +222,7 @@
           <label class="f">Seconds per spot <input type="number" min="1" step="1" data-key="seconds"></label>
         </div>
         <label class="f">Payment line <input type="text" data-key="payLine"></label>
-        <div class="hint">Leave an amount blank or 0 to hide that prize.</div>
+        <div class="hint">Leave an amount blank or 0 to hide that prize. Set seconds per spot to <b>1</b> and the poster says “$80 per second.”</div>
       </div>
     </details>
 
@@ -383,9 +383,9 @@ const THEMES = {
 const MAX_SPOTS=60;
 const EMPTY_SQUARES = (n=30) => Array.from({length:n},()=>({name:'',paid:false}));
 const FORMATS = {
-  15:{rows:15, cols:2, spots:30, numbered:false, label:'15 rows', desc:'30 spots · 2 seconds each · two columns'},
+  15:{rows:15, cols:2, spots:30, numbered:false, defSecs:2, label:'15 rows', desc:'30 spots · 2 seconds each · two columns'},
   18:{rows:18, cols:2, spots:36, numbered:true,  label:'18 rows', desc:'36 numbered spots (1–36) · two columns'},
-  30:{rows:30, cols:2, spots:60, numbered:false, secs:1, label:'30 rows', desc:'60 spots · 1 second each (:00 – :59) · two columns'},
+  30:{rows:30, cols:2, spots:60, numbered:false, defSecs:1, label:'30 rows', desc:'60 spots · 1 second each (:00 – :59) · two columns'},
 };
 const fmt = () => FORMATS[state.tableRows] || FORMATS[15];
 const spotLabel = i => { const F=fmt(); return F.numbered ? String(i+1) : F.spots===60 ? `:${pad2(i)}` : `${pad2(2*i+1)}/${pad2((2*i+2)%60)}`; };
@@ -888,8 +888,8 @@ function buildBlocks(ctx,W,k,th){
     fitFont(ctx,t,PF,900,44*k,W*0.84,12); ctx.fillText(t,cx,y+this.h/2);
   }});
   if(Number(s.price)>0) B.push({h:54*k, draw(y){
-    const secs=fmt().secs || Math.max(1,Number(s.seconds)||1);
-    const t= fmt().numbered ? `${money(s.price)} a spot.` : `${money(s.price)} a spot for ${secs} second${secs==1?'':'s'}.`;
+    const secs=Math.max(1,Number(s.seconds)||1);
+    const t= fmt().numbered ? `${money(s.price)} a spot.` : secs===1 ? `${money(s.price)} per second.` : `${money(s.price)} a spot for ${secs} seconds.`;
     const size=fitFont(ctx,t,PF,700,40*k,W*0.72,12); const tw=ctx.measureText(t).width;
     const bw=62*k, bh=36*k, gap=14*k, x0=cx-(bw+gap+tw)/2, my=y+this.h/2;
     // ticket badge
@@ -913,8 +913,48 @@ function drawCheck(ctx,x,y,s,color){
   ctx.quadraticCurveTo(x+0.6*s,y+0.28*s,x+0.97*s,y+0.0*s); ctx.lineTo(x+1.0*s,y+0.07*s);
   ctx.quadraticCurveTo(x+0.66*s,y+0.4*s,x+0.43*s,y+0.98*s); ctx.closePath(); ctx.fill(); ctx.restore();
 }
+function hexRgb(h){ const m=h.replace('#',''); return [parseInt(m.slice(0,2),16),parseInt(m.slice(2,4),16),parseInt(m.slice(4,6),16)]; }
+function drawDenseTable(ctx,tx,ty,tw,rh,th,opts){
+  // Cleaner style for tall tables (18 and 30 rows): hairline rules, zebra rows, tinted second columns,
+  // a stronger rule every 5 rows and a clear split down the middle.
+  const F=fmt(), R=F.rows;
+  const f=[0.39,0.11,0.11,0.39]; const cw=f.map(v=>v*tw); const xs=[tx]; cw.forEach(w=>xs.push(xs[xs.length-1]+w));
+  const tH=rh*R, [r0,g0,b0]=hexRgb(th.table), tc=a=>`rgba(${r0},${g0},${b0},${a})`;
+  const dark=`rgb(${Math.round(r0*0.45)},${Math.round(g0*0.45)},${Math.round(b0*0.45)})`;
+  const cellOf = i => i<R ? {r:i,name:0,num:1} : {r:i-R,name:3,num:2};
+  // base + zebra + tinted label columns
+  ctx.fillStyle=th.cell; ctx.fillRect(tx,ty,tw,tH);
+  ctx.fillStyle=tc(0.065); for(let r=1;r<R;r+=2) ctx.fillRect(tx,ty+r*rh,tw,rh);
+  ctx.fillStyle=tc(0.13); ctx.fillRect(xs[1],ty,cw[1]+cw[2],tH);
+  if(opts.highlight!=null && opts.highlight<F.spots){ const c=cellOf(opts.highlight); ctx.fillStyle='rgba(255,214,0,.4)'; ctx.fillRect(xs[c.name],ty+c.r*rh,cw[c.name],rh); }
+  const u=Math.max(1,rh/26);           // line unit scales with row height
+  const hline=(r,a,w)=>{ ctx.strokeStyle=tc(a); ctx.lineWidth=w; ctx.beginPath(); ctx.moveTo(tx,ty+r*rh); ctx.lineTo(tx+tw,ty+r*rh); ctx.stroke(); };
+  const vline=(x,a,w)=>{ ctx.strokeStyle=tc(a); ctx.lineWidth=w; ctx.beginPath(); ctx.moveTo(x,ty); ctx.lineTo(x,ty+tH); ctx.stroke(); };
+  for(let r=1;r<R;r++){ if(r%5) hline(r,0.28,0.9*u); }
+  for(let r=5;r<R;r+=5) hline(r,0.75,1.5*u);
+  vline(xs[1],0.55,1.1*u); vline(xs[3],0.55,1.1*u);
+  vline(xs[2],0.95,2.4*u);              // centre split between :00–:29 and :30–:59
+  const pad=rh*0.22, cs=rh*0.64;
+  const lab=Math.min(rh*0.6,26);
+  for(let i=0;i<F.spots;i++){
+    const c=cellOf(i), y=ty+c.r*rh, my=y+rh/2;
+    const qq=state.squares[i], paidCell=qq.paid && qq.name.trim();
+    if(paidCell){ const ins=c.num===1? [u*0.6,u*1.3] : [u*1.3,u*0.6]; ctx.fillStyle=th.check; ctx.fillRect(xs[c.num]+ins[0],y+u*0.5,cw[c.num]-ins[0]-ins[1],rh-u); }
+    ctx.fillStyle=paidCell?'#ffffff':dark; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font=`800 ${lab}px ${OS}`;
+    ctx.fillText(spotLabel(i),xs[c.num]+cw[c.num]/2,my+u);
+    hits.push({i,x:xs[c.name],y,w:cw[c.name],h:rh}); hits.push({i,x:xs[c.num],y,w:cw[c.num],h:rh,num:true});
+    const q=state.squares[i]; if(!q.name.trim()) continue;
+    const x=xs[c.name], w=cw[c.name];
+    const room=w-pad*2-(q.paid? cs+pad*0.7 : 0);
+    ctx.fillStyle='#121212'; fitFont(ctx,q.name.trim(),OS,700,Math.min(rh*0.58,26),room,Math.max(9,rh*0.3)); ctx.textBaseline='middle';
+    if(c.name===0){ ctx.textAlign='right'; ctx.fillText(q.name.trim(),x+w-pad,my+u); if(q.paid) drawCheck(ctx,x+pad,my-cs/2,cs,th.check); }
+    else { ctx.textAlign='left'; ctx.fillText(q.name.trim(),x+pad,my+u); if(q.paid) drawCheck(ctx,x+w-pad-cs,my-cs/2,cs,th.check); }
+  }
+  ctx.strokeStyle=th.table; ctx.lineWidth=2.6*u; ctx.strokeRect(tx,ty,tw,tH);
+}
 function drawTable(ctx,tx,ty,tw,rh,th,opts){
   const F=fmt(), R=F.rows, two=F.cols===2;
+  if(two && R>=18) return drawDenseTable(ctx,tx,ty,tw,rh,th,opts);
   // columns: two-column = name | label | label | name ; one-column = label | name
   const f = two ? [0.37,0.13,0.13,0.37] : [0.2,0.8];
   const cw=f.map(v=>v*tw); const xs=[tx]; cw.forEach(w=>xs.push(xs[xs.length-1]+w));
@@ -931,7 +971,9 @@ function drawTable(ctx,tx,ty,tw,rh,th,opts){
   for(let i=0;i<F.spots;i++){
     const c=cellOf(i), y=ty+c.r*rh, my=y+rh/2;
     // spot label
-    ctx.fillStyle='#1b1b1b'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font=`400 ${rh*0.5}px ${OS}`;
+    const qq=state.squares[i], paidCell=qq.paid && qq.name.trim();
+    if(paidCell){ const ins=lw*0.65; ctx.fillStyle=th.check; ctx.fillRect(xs[c.num]+ins,y+ins,cw[c.num]-2*ins,rh-2*ins); }
+    ctx.fillStyle=paidCell?'#ffffff':'#1b1b1b'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font=`${paidCell?700:400} ${rh*0.5}px ${OS}`;
     ctx.fillText(spotLabel(i),xs[c.num]+cw[c.num]/2,my+1);
     hits.push({i,x:xs[c.name],y,w:cw[c.name],h:rh}); hits.push({i,x:xs[c.num],y,w:cw[c.num],h:rh,num:true});
     const q=state.squares[i]; if(!q.name.trim()) continue;
@@ -964,7 +1006,7 @@ function drawPoster(ctx,W,H,opts={}){
   const items=[...blocks,{h:tableH+gapT*k*2,table:true},{h:footH,footer:true}];
   const gap=Math.min(extra/(items.length+1),36);
   let y=topPad*k+(extra-gap*(items.length-1))/2;
-  const tw = F.cols===2 ? Math.min(W*0.8, Math.max(W*0.72, rh*16.5)) : Math.min(W*0.62, Math.max(W*0.5, rh*15));
+  const tw = F.cols===2 ? (R>=18 ? W*0.82 : Math.min(W*0.8, Math.max(W*0.72, rh*16.5))) : Math.min(W*0.62, Math.max(W*0.5, rh*15));
   if(state.decorations && th.deco==='gothic'){
     let yy=y, tableTop=y; for(const it of items){ if(it.table){ tableTop=yy+gapT*k; break; } yy+=it.h+gap; }
     drawGothicArch(ctx,W,Math.max(26,y-30*k),y+(tableTop-y)*0.3,tableTop-6,'#d9b46a');
@@ -1290,12 +1332,12 @@ function buildRowsSeg(){
 }
 function updateRowsSeg(){
   $('#segRows').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',Number(b.dataset.rows)===state.tableRows));
-  $('#fmtDesc').textContent=fmt().desc + (fmt().numbered ? ' — the price line drops “for 2 seconds”.' : fmt().secs===1 ? ' — the price line says “for 1 second”.' : '.') + ' Each table format keeps its own list of names.';
-  const sec=document.querySelector('[data-key=seconds]'); if(sec){ sec.disabled=!!(fmt().numbered||fmt().secs); sec.title=fmt().numbered?'Not used with numbered spots':fmt().secs?`Fixed at ${fmt().secs} second for this table`:''; }
+  $('#fmtDesc').textContent=fmt().desc + (fmt().numbered ? ' — the price line drops “for 2 seconds”.' : '.') + ' Each table format keeps its own list of names.';
+  const sec=document.querySelector('[data-key=seconds]'); if(sec){ sec.disabled=!!fmt().numbered; sec.title=fmt().numbered?'Not used with numbered spots':''; if(document.activeElement!==sec) sec.value=state.seconds; }
 }
 function setTableRows(n){
   if(state.tableRows===n) return;
-  state.tableRows=n; state.squares=state.boards[n]; buildSquares(); updateRowsSeg(); persist(); render();
+  state.tableRows=n; state.squares=state.boards[n]; if(FORMATS[n].defSecs) state.seconds=FORMATS[n].defSecs; buildSquares(); updateRowsSeg(); persist(); render();
   toast(`Table: ${FORMATS[n].label} · ${FORMATS[n].desc}`);
 }
 function buildSeg(){
@@ -1413,7 +1455,7 @@ Promise.all([
 document.fonts && document.fonts.ready.then(()=>render());
 
 /* ===================== INSTALLABLE APP (GitHub Pages) ===================== */
-const APP_VERSION='1.3.0';
+const APP_VERSION='1.4.0';
 $('#appVer').textContent=APP_VERSION;
 let installEvt=null;
 window.addEventListener('beforeinstallprompt',e=>{ e.preventDefault(); installEvt=e; $('#btnInstall').hidden=false; });

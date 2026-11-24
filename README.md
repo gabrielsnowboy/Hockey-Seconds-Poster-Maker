@@ -65,7 +65,7 @@ After the first visit, the app also works **offline**.
 ## Updating the app later
 
 1. Upload the new `index.html` to the repository (it replaces the old one).
-2. Open `sw.js` and change `const VERSION = 'v1.3.0';` to a new number, for example `'v1.3.1'`.
+2. Open `sw.js` and change `const VERSION = 'v1.4.0';` to a new number, for example `'v1.4.1'`.
 3. Commit. People who already have the app see **"A new version of the app is ready — Reload"**.
 
 ## Files

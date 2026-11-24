@@ -1,6 +1,6 @@
 // Hockey Seconds Poster Maker — offline support.
 // Bump VERSION whenever you upload a new index.html so visitors get the update.
-const VERSION = 'v1.3.0';
+const VERSION = 'v1.4.0';
 const SHELL = `shell-${VERSION}`;
 const RUNTIME = 'runtime-v1';
 const FILES = ['./', './index.html', './manifest.webmanifest',
